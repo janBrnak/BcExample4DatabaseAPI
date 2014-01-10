@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <!-- WARNING: for iOS 7, remove the width=device-width and height=device-height attributes. See https://issues.apache.org/jira/browse/CB-4323 -->
+        <!--<meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />-->
+        <!--<meta http-equiv="X-UA-Compatible" content="IE=edge" />-->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" type="text/css" href="css/index.css" />
+        <title>4. Príklad Databse API</title>
+    </head>
+    <body>
+        <div class="app">
+            <h1>4. Príklad Database API</h1>
+            <h2>Pridať užívateľa</h2>
+            <form id="databaseAPI" name="databaseAPI" method="post">
+                <input type="hidden" id="id" name="id" value="">
+                <div class="input text">
+                    <label for="name">Meno: </label>
+                    <input type="text" id="name" name="name" required />
+                </div>
+                <div class="input text">
+                    <label for="surname">Priezvisko: </label>
+                    <input type="text" id="surname" name="surname" required />
+                </div>
+                <div class="input email">
+                    <label for="email">E-mail: </label>
+                    <input type="email" id="email" name="email" required />
+                </div>
+                <div class="input checkbox">
+                    <label for="websql">Web SQL Database</label>
+                    <input type="checkbox" id="websql" name="websql" />
+                </div>
+                <div class="input checkbox">
+                    <label for="indexed">Indexed Database API</label>
+                    <input type="checkbox" id="indexed" name="indexed" />
+                </div>
+                <input type="submit" />
+            </form>
+            <br />
+            <h2>The Web SQL Database</h2>
+            <table id="websqlList" class="listItems">
+                <thead>
+                    <tr>
+                        <th style="width:25px;">Id</th>
+                        <th>Meno</th>
+                        <th>Priezvisko</th>
+                        <th>Email</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+            <br />
+            <h2>The Indexed Database API</h2>
+            <table id="indexedList" class="listItems">
+                <thead>
+                    <tr>
+                        <th style="width:25px;">Id</th>
+                        <th>Meno</th>
+                        <th>Priezvisko</th>
+                        <th>Email</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+        </div>
+        <div class="loader"></div>
+        <br />
+        <script type="text/javascript" src="cordova.js"></script>
+        <script type="text/javascript" src="js/jquery.js"></script>
+        <script type="text/javascript" src="js/index.js"></script>
+        <script type="text/javascript">
+            app.initialize();
+        </script>
+    </body>
+</html>
+<script type="text/javascript" src="http://bc-weinre.herokuapp.com/target/target-script-min.js#bc-database-api"></script>
