@@ -46,10 +46,15 @@ function onLoad() {
     // init database
     websqlInit();
     indexedInit();
-    // slide formular
-    $("span.toogleForm").click(function() {
-        $("#databaseAPI").slideToggle("slow");
-    });
+
+    // phonegap doesn't support indexedDB
+    if (DEVICE_TYPE == 'mobile') {
+        $("label[for=indexed]").css("color", "#666666");
+        $("input#indexed").attr("checked", false);
+        $("input#indexed").attr("disabled", true);
+        $("input#indexed").parent().append("&nbsp;(<span style='color:#ff0000'>Phonegap nepodporuje IndexedDB.</span>)");
+    }
+
     // submit form
     $("#databaseAPI").submit(function(event) {
         var data = new Object();
@@ -70,7 +75,8 @@ function onLoad() {
                 websqlSaveData(data);
         }
 
-        if(data.indexed) {
+        // phonegap doesn't support indexedDB
+        if(data.indexed && DEVICE_TYPE != 'mobile') {
             if (data.id)
                 indexedUpdateRow(data);
             else
@@ -150,7 +156,9 @@ function websqlSaveData(data) {
         tx.executeSql('INSERT INTO users (name, surname, email) VALUES ("' + data.name  + '", "' + data.surname  + '", "' + data.email  + '")', [], function(tx, result) {
             websqlListData();
             resetForm();
+
             loader.hide();
+            console.log("SUCCESS: Add row in websql database.");
         });
     });
 }
@@ -159,10 +167,11 @@ function websqlSaveData(data) {
 function websqlUpdateRow(data) {
     db.transaction(function(tx) {
         tx.executeSql('UPDATE users SET name = "' + data.name + '", surname = "' + data.surname + '", email = "' + data.email + '" WHERE id = ' + data.id, [], function(tx, result) {
-            console.log(result);
             websqlListData();
             resetForm();
+
             loader.hide();
+            console.log("SUCCESS: Update row in websql database.");
         });
     });
 }
@@ -179,6 +188,7 @@ function websqlLoadData(id) {
             $("#email").val(row.email);
 
             loader.hide();
+            console.log("SUCCESS: Load row with id='" + row.id + "' from websql database.");
         });
     });
 }
@@ -196,35 +206,40 @@ function websqlRemoveRow(id) {
 
 // The Indexed Database API
 function indexedInit() {
-    dbi.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+    dbi.indexedDB   = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
     dbi.transaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
-    dbi.keyRange = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange;
+    dbi.keyRange    = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange;
 
     if (!dbi.indexedDB) {
         alert("Your browser doesn't support a stable version of IndexedDB. Such and such feature will not be available.");
     }
     else {
-        var request = dbi.indexedDB.open(dbiName, 3);
-        request.onupgradeneeded = function(event) {
-            var db = event.target.result;
-            var objectStore = db.createObjectStore(dbiName, {keyPath: "id", autoIncrement: true, unique: true});
-            objectStore.createIndex("name", "name", { unique: false });
-            objectStore.createIndex("surname", "surname", { unique: false });
-            objectStore.createIndex("email", "email", { unique: false });
-        };
+        var request = dbi.indexedDB.open(dbiName, 1);
 
         // handler error
         request.onerror = function(event) {
-            //alert("ERROR: Init indexed database.");
             console.log("ERROR: Init indexed database.");
             console.log(event);
         };
 
+        // this event is only implemented in recent browsers
+        request.onupgradeneeded = function(event) {
+            var dbr = event.target.result;
+
+            // create an objectStore for this database
+            var objectStore = dbr.createObjectStore(dbiName, {keyPath: "id", autoIncrement: true, unique: true});
+
+            // create indexes
+            objectStore.createIndex("name",     "name",     { unique: false });
+            objectStore.createIndex("surname",  "surname",  { unique: false });
+            objectStore.createIndex("email",    "email",    { unique: false });
+        };
+
         // handler success
         request.onsuccess = function(event) {
-            //alert("SUCCESS: Init indexed database.");
-            console.log("SUCCESS: Init indexed database.");
             dbi.request = request;
+            console.log("SUCCESS: Init indexed database.");
+
             // list saved data
             indexedListData();
         };
@@ -233,120 +248,163 @@ function indexedInit() {
 
 // list data
 function indexedListData(options) {
+    var table = $("#indexedList");
+    var html = "";
     var result = dbi.request.result;
-    var transaction = dbi.request.result.transaction(dbiName, "readwrite").objectStore(dbiName).count();
+    var store = result.transaction(dbiName, "readwrite").objectStore(dbiName);
+    var request = null;
 
-    transaction.onerror = function(event) {
-        //alert("ERROR: Count from indexed database.");
+    // request count
+    request = store.count();
+
+    request.onsuccess = function(event) {
+        // num rows event.target.result
+    };
+
+    request.onerror = function(event) {
         console.log("ERROR: Count from indexed database.");
+        console.log(event);
+    };
+
+    // request open cursor
+    request = store.openCursor();
+
+    // open cursor error callback function
+    request.onerror = function(event) {
+        console.log("ERROR: Open cursor from indexed database.");
         console.log(event);
     }
 
-    transaction.onsuccess = function(event) {
-        var request = event.target.source.openCursor();;
-        var table = $("#indexedList");
-        var html = "";
+    // open cursor success callback function
+    request.onsuccess = function(event) {
+        var cursor = event.target.result;
 
-        request.onsuccess = function(event) {
-            var cursor = event.target.result;
+        if (cursor) {
+            html += "<tr>";
+                html += "<td>" + cursor.value.id + "</td>";
+                html += "<td>" + cursor.value.name + "</td>";
+                html += "<td>" + cursor.value.surname + "</td>";
+                html += "<td>" + cursor.value.email + "</td>";
+                html += "<td>" +
+                            "<a href='JavaScript:void(0);' onclick='indexedRemoveRow(" + cursor.key + ")' title='Zmazať'>Zmazať</a>&nbsp;/&nbsp;" +
+                            "<a href='JavaScript:void(0);' onclick='indexedLoadData(" + cursor.key + ")' title='Upraviť'>Upraviť</a>" +
+                        "</td>";
+            html += "</tr>";
 
-            if (cursor) {
-                request = event.target.source.get(cursor.key);
+            // move on to the next object in store
+            cursor.continue();
+        }
+        else {
+            table.children("tbody").html(html);
 
-                request.onsuccess = function (event) {
-                    var value = event.target.result;
-
-                    html += "<tr>";
-                        html += "<td>" + cursor.key + "</td>";
-                        html += "<td>" + value.name + "</td>";
-                        html += "<td>" + value.surname + "</td>";
-                        html += "<td>" + value.email + "</td>";
-                        html += "<td>" +
-                                    "<a href='JavaScript:void(0);' onclick='indexedRemoveRow(" + cursor.key + ")' title='Zmazať'>Zmazať</a>&nbsp;<!--/&nbsp;-->" +
-                                    "<!--<a href='JavaScript:void(0);' onclick='indexedLoadData(" + cursor.key + ")' title='Upraviť'>Upraviť</a>-->" +
-                                "</td>";
-                    html += "</tr>";
-                };
-
-                // Move on to the next object in store
-                cursor.continue();
-            }
-            else {
-                table.children("tbody").html(html);
+            if (html && !table.is(":visible"))
                 table.show();
-                loader.hide();
-            }
-        };
+            else if (!html && table.is(":visible"))
+                table.hide();
+
+            loader.hide();
+        }
     };
 }
 
 // save data
 function indexedSaveData(data) {
     var result = dbi.request.result;
-    var save = {name: data.name, surname: data.surname, email: data.email};
-    var transaction = result.transaction([dbiName], "readwrite").objectStore(dbiName).add(save);
+    var save = {
+            name: data.name,
+            surname: data.surname,
+            email: data.email
+        };
+    var request = result.transaction(dbiName, "readwrite").objectStore(dbiName).add(save);
 
     // handler error
-    transaction.onerror = function(event) {
-        //alert("ERROR: Add row into indexed database.");
+    request.onerror = function(event) {
         console.log("ERROR: Add row into indexed database.");
         console.log(event);
     };
 
     // handler success
-    transaction.onsuccess = function(event) {
-        //alert("SUCCESS: Add row into indexed database.");
-        console.log("SUCCESS: Add row into indexed database.");
+    request.onsuccess = function(event) {
         indexedListData();
         resetForm();
+
         loader.hide();
+        console.log("SUCCESS: Add row into indexed database.");
     };
 }
 
 // update data
 function indexedUpdateRow(data) {
-    //ndexedSaveData(data);
+    var result = dbi.request.result;
+    var save = {
+            id: parseInt(data.id),
+            name: data.name,
+            surname: data.surname,
+            email: data.email
+        };
+    var request = result.transaction(dbiName, "readwrite").objectStore(dbiName).put(save);
+
+    // handler error
+    request.onerror = function(event) {
+        console.log("ERROR: Update row in indexed database.");
+        console.log(event);
+    };
+
+    // handler success
+    request.onsuccess = function(event) {
+        indexedListData();
+        resetForm();
+
+        loader.hide();
+        console.log("SUCCESS: Update row in indexed database.");
+    };
 }
 
 function indexedLoadData(id) {
     var result = dbi.request.result;
-    var transaction = result.transaction(dbiName, "readwrite").objectStore(dbiName).get(id);
+    var request = result.transaction(dbiName, "readonly").objectStore(dbiName).get(id);
 
     // handler error
-    transaction.onerror = function(event) {
+    request.onerror = function(event) {
         console.log("ERROR: Get row into indexed database.");
         console.log(event);
     };
 
     // handler success
-    transaction.onsuccess = function(event) {
-        console.log("SUCCESS: Get row into indexed database.");
+    request.onsuccess = function(event) {
+        if (request.result != undefined) {
+            $("#id").val(request.result.id);
+            $("#name").val(request.result.name);
+            $("#surname").val(request.result.surname);
+            $("#email").val(request.result.email);
 
-        $("#id").val(id);
-        $("#name").val(transaction.result.name);
-        $("#surname").val(transaction.result.surname);
-        $("#email").val(transaction.result.email);
-
-        loader.hide();
+            loader.hide();
+            console.log("SUCCESS: Load row with id='" + request.result.id + "' from indexed database.");
+        }
+        else {
+            loader.hide();
+            console.log("WARRNING: Not found row with id='" + id + "' in indexed database.");
+        }
     };
 }
 
 // remove row
 function indexedRemoveRow(id) {
     var result = dbi.request.result;
-    var transaction = result.transaction([dbiName], "readwrite").objectStore(dbiName).delete(id);
+    var request = result.transaction(dbiName, "readwrite").objectStore(dbiName).delete(id);
 
     // handler error
-    transaction.onerror = function(event) {
-        console.log("ERROR: Remove row into indexed database.");
+    request.onerror = function(event) {
+        console.log("ERROR: Remove row with id='" + id + "' from indexed database.");
         console.log(event);
     };
 
     // handler success
-    transaction.onsuccess = function(event) {
-        console.log("SUCCESS: Remove row into indexed database.");
+    request.onsuccess = function(event) {
         indexedListData();
         resetForm();
+
         loader.hide();
+        console.log("SUCCESS: Remove row with id='" + id + "' from indexed database.");
     };
 }
